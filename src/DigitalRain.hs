@@ -1,4 +1,4 @@
-module DigitalRain (Drop(..), Color(..), rain, randomDrop) where
+module DigitalRain (rain, randomDrop, Drop, show) where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (filterM)
@@ -7,61 +7,32 @@ import Data.Char
 import Data.Maybe
 
 data Drop = Drop {
-    x :: Int,
-    y :: Int,
-    char :: Char,
-    color :: Color
+	x :: Int,
+	y :: Int,
+	c :: Char,
+	color :: Int
 }
 
 instance Show Drop where
-    show drop = concat [
-        "\ESC[",show (y drop), ";", show (x drop), "H",
-        "\ESC[", show (color drop), "m",
-        [char drop],
-        "\ESC[0m"
-        ]
+	show drop  =  "\ESC["   ++ show (y drop)     ++ ";" ++ show (x drop) ++ "H"
+			   ++ "\ESC[3"  ++ show (color drop) ++ "m" ++ [c drop]		 ++ "\ESC[0m"
 
-data Color
-    = Red
-    | Green
-    | Blue
-    | Yellow
-    | White
-    deriving (Eq, Enum)
+randomDrop :: RandomGen g => g -> Int -> (g, Drop)
+randomDrop g maxW  = (g'', Drop rx 0 rc rcol) where
+	(rx, g')      = randomR (0,  maxW) g
+	(rc, g'')     = randomR (' ', '~') g'
+	(rcol, g''')  = randomR (1, 9) g''
 
-instance Show Color where
-    show Red = "\ESC[31m"
-    show Green = "\ESC[32m"
-    show Blue = "\ESC[34m"
-    show Yellow = "\ESC[33m"
-    show White = "\ESC[37m"
+moveDrop :: Int -> Int -> [Drop] -> [Drop]
+moveDrop maxH maxW drops = filter (\d -> y d < maxH) $ map (\d -> d {y = y d + 1}) drops
 
-rain :: [IO Drop] -> IO ()
-rain drops = case drops of
-    [] -> do
-        rain [randomDrop]
-    _ -> do
-        drops' <- return $ moveDrops drops
-        putStr $ unlines $ show
-        randDelay <- randomRIO (100, 10000)
-        threadDelay randDelay
-        rain drops'
-
-randomDrop :: IO Drop
-randomDrop = do
-    x <- randomRIO (0, 80)
-    y <- return 0
-    char <- randomRIO (' ', '~')
-    color <- toEnum <$> randomRIO (0, 4)
-    return $ Drop x y char color
-
-moveDrop :: IO Drop -> IO Drop
-moveDrop drop = do
-    drop' <- drop
-    y' <- return $ y drop' + 1
-    if y' > 24
-        then do randomDrop
-        else do return $ drop' { y = y' }
-
-moveDrops :: [IO Drop] -> [IO Drop]
-moveDrops drops =  moveDrop <$> drops
+rain :: RandomGen g => g -> Int -> Int -> [Drop] -> IO ()
+rain g maxH maxW drops = do
+	let (g', d)   = randomDrop g maxW
+	let (g'', d2) = randomDrop g' maxW
+	let (g''', d3) = randomDrop g'' maxW
+	threadDelay   $ 20000
+	let drops'    = moveDrop maxH maxW drops
+	putStr $ unlines $ map show drops' ++ [show d] ++ [show d2]
+	putStr "\ESC[2J"
+	rain g''' maxH maxW (drops' ++ [d] ++ [d2])
